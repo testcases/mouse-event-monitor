@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>mouse event monitor</title>
+        <style>
+            html {
+                user-select: none;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-flow: column;
+            }
+            pre {
+                font: 20px;
+                margin: 0 6px;;
+            }
+        </style>
+    </head>
+    <body>
+        <svg id="seismograph"></svg>
+        <pre id="clock"></pre>
+        <pre id="log"></pre>
+        <script>
+            /*global Modernizr*/
+
+            function chartable(svg, opts){
+            opts = opts || {};
+            var samples = opts.samples !== undefined ? opts.samples : 300;
+            var initY = opts.initY !== undefined ? opts.initY : 0;
+            var defStyle = opts.defStyle !== undefined ? opts.defStyle : "stroke: green";
+            var baseTop = opts.baseTop !== undefined ? opts.baseTop : 10;
+            var baseBottom = opts.baseBottom !== undefined ? opts.baseBottom : -10;
+
+            var frame = 1;
+            var segments = [];
+            var values = [];
+            var initViewBox = '1 ' + (-baseTop) + ' ' +samples+' '+ (baseTop-baseBottom);
+
+            svg.setAttribute("viewBox",initViewBox);
+
+            for (var i = 0; i < samples+2; i++){
+                segments[i] = document.createElementNS(
+                'http://www.w3.org/2000/svg', 'path');
+                segments[i].setAttribute("style",defStyle);
+                svg.appendChild(segments[i]);
+                if(initY !== false && initY !== null) {
+                segments[i].setAttribute("d","M " + i + " " + (-initY) +
+                    " L " + (i+1) + " " + (-initY));
+                values[i] = initY;
+                }
+            }
+
+            function pan(){
+                var top = -Math.max(Math.max.apply(null,values),baseTop);
+                var bottom = -Math.min(Math.min.apply(null,values), baseBottom);
+                var newViewBox = frame + ' ' + top + ' ' +
+                samples + ' ' + (-(top-bottom));
+                svg.setAttribute("viewBox",newViewBox);
+            }
+
+            function addPoint(y,style){
+                if(values.length){
+                var path = segments[(frame-1)%(samples+2)];
+                path.setAttribute('d',"M "+(frame+samples+1)+' '+(-values[(frame-1)%(samples+2)])+
+                    ' L '+(frame+samples+2)+' '+(-y));
+                path.setAttribute('style',style === undefined ? defStyle : style);
+                values[frame%(samples+2)]=y;
+                frame++;
+                pan();
+                } else { //late initialization for the non-initY case
+                for (var i = 0; i <= samples; i++){
+                    values[i] = y;
+                }
+                }
+            }
+
+            return addPoint;
+            }
+
+            const chartPush = chartable(document.getElementById("seismograph"),
+                {samples: 600});
+            let lastClickVal = -8;
+
+            const clockElement = document.getElementById('clock');
+
+            function tick() {
+                clockElement.textContent = new Date().toISOString();
+                chartPush(lastClickVal);
+                //lastClickVal = 0;
+                requestAnimationFrame(tick);
+            }
+
+            const logContainer = document.getElementById('log');
+
+            function logEvent(evt) {
+                const logEntry = document.createTextNode(
+                    new Date().toISOString() + ' ' + evt.type + '\n');
+                logContainer.prepend(logEntry);
+            }
+
+            function mouseSampler(value) {
+                return function(evt) {
+                    lastClickVal = value;
+                    logEvent(evt)
+                }
+            }
+
+            window.addEventListener('mousedown', mouseSampler(8))
+            window.addEventListener('mouseup', mouseSampler(-8))
+            tick();
+        </script>
+    </body>
+</html>
